@@ -1,20 +1,31 @@
-// Deal with user-supplied assembly to make sure output names are correct
-if ( params.assembly ) {
-    assembler = 'user_assembly'
-} else {
-    assembler = params.assembler
+// Exit if the user provides both --assembler and --user_assembly, or both --orf_caller and either of the two --user_orfs,
+// or none of them
+if ( ( params.assembler && params.user_assembly ) || ( ! params.assembler && ! params.user_assembly ) ) {
+    error "Provide either `--assembler` or `--user_assembly`!"
+}
+if ( ( params.orf_caller && ( params.user_orfs_gff ) ) && ( ! params.orf_caller && ! params.user_orfs_gff ) ) {
+    error "Provide either `--orf_caller` or `--user_orfs_gff`/`--user_orfs_faa`!"
 }
 
-// Deal with params from user-supplied ORFs, and set orf_caller correctly
-if ( params.gff && params.protein_fasta ) {
-    orf_caller = 'user_orfs'
-} else if ( params.gff && ! params.protein_fasta ) {
-    error 'When supplying ORFs, both --gff and --protein_fasta must be specified, --protein_fasta file is missing!'
-} else if ( params.protein_fasta && ! params.gff ) {
-    error 'When supplying ORFs, both --gff and --protein_fasta must be specified, --gff file is missing!'
-} else {
-    orf_caller = params.orf_caller
+// Exit if the user forgot one of the two `--user_orfs_*`
+if ( params.user_orfs_gff && ! params.user_orfs_faa ) {
+    error 'When supplying ORFs, both --user_orfs_gff and --user_orfs_faa must be specified, --user_orfs_faa file is missing!'
+} else if ( params.user_orfs_faa && ! params.user_orfs_gff ) {
+    error 'When supplying ORFs, both --user_orfs_gff and --user_orfs_faa must be specified, --user_orfs_gff file is missing!'
 }
+
+// Exit if the user set params.assembler plus any of params.user_orfs_*
+if ( params.assembler && ( params.user_orfs_gff || params.user_orfs_faa ) ) {
+    error "You can't input your own ORFs (`--user_orfs_*`) if you call for assembly with `--assembler`."
+}
+
+// Deal with user-supplied assembly to make sure output names are correct
+assembler     = params.assembler 
+assembly_name = params.assembler ?: params.user_assembly_name
+
+// Deal with params from user-supplied ORFs, and set orf_caller correctly
+orf_caller = params.orf_caller
+orfs_name  = params.orf_caller ?: params.user_orfs_name
 
 // set an empty multiqc channel
 ch_multiqc_files = Channel.empty()
@@ -173,7 +184,7 @@ workflow METATDENOVO {
         params.skip_trimming
     )
     ch_versions = ch_versions.mix(FASTQC_TRIMGALORE.out.versions)
-    ch_collect_stats = ch_cat_fastq.collect { meta, fasta -> meta.id }.map { [ [ id:"${assembler}.${orf_caller}" ], it ] }
+    ch_collect_stats = ch_cat_fastq.collect { meta, fasta -> meta.id }.map { [ [ id:"${assembly_name}.${orfs_name}" ], it ] }
     if ( params.skip_trimming ) {
         ch_collect_stats
             .map { meta, samples -> [ meta, samples, [] ] }
@@ -216,7 +227,7 @@ workflow METATDENOVO {
     //
     // DL & DDL: We can probably not deal with single end input
     ch_interleaved = Channel.empty()
-    if ( ! params.assembly ) {
+    if ( ! params.user_assembly ) {
         if ( params.se_reads) {
             ch_single_end = ch_clean_reads
         } else {
@@ -229,7 +240,7 @@ workflow METATDENOVO {
     //
     // SUBWORKFLOW: Perform digital normalization. There are two options: khmer or BBnorm. The latter is faster.
     //
-    if ( ! params.assembly ) {
+    if ( ! params.user_assembly ) {
         if ( params.se_reads ) {
             if ( params.bbnorm ) {
                 BBMAP_BBNORM(ch_single_end.collect { meta, fastq -> fastq }.map {[ [id:'all_samples', single_end:true], it ] } )
@@ -255,14 +266,14 @@ workflow METATDENOVO {
     //
     // MODULE: Run Megahit or Spades on all interleaved fastq files
     //
-    if ( params.assembly ) {
+    if ( params.user_assembly ) {
         // If the input assembly is not gzipped, do that since all downstream calls assume this
-        if ( ! params.assembly.endsWith('.gz') ) {
-            PIGZ_ASSEMBLY(Channel.fromPath(params.assembly).map { [ [ id:params.assembly ], it ] } )
+        if ( ! params.user_assembly.endsWith('.gz') ) {
+            PIGZ_ASSEMBLY(Channel.fromPath(params.user_assembly).map { [ [ id:params.user_assembly ], it ] } )
             PIGZ_ASSEMBLY.out.archive.first().set { ch_assembly_contigs }
         } else {
             Channel
-                .value ( [ [ id: 'user_assembly' ], file(params.assembly) ] )
+                .value ( [ [ id: assembly_name ], file(params.user_assembly) ] )
                 .set { ch_assembly_contigs }
         }
     } else if ( assembler == 'spades' ) {
@@ -276,7 +287,7 @@ workflow METATDENOVO {
         ch_pe_reads_to_assembly
             .mix(ch_se_reads_to_assembly)
             .collect()
-            .map { [ [ id:'spades' ], it, [], [] ] }
+            .map { it -> [ [ id: assembly_name ], it, [], [] ] }
             .set { ch_spades }
         SPADES (
             ch_spades,
@@ -300,7 +311,7 @@ workflow METATDENOVO {
             'megahit_assembly'
         )
         MEGAHIT_INTERLEAVED.out.contigs
-            .map { [ [ id: 'megahit' ], it ] }
+            .map { it -> [ [ id: assembly_name ], it ] }
             .set { ch_assembly_contigs }
         ch_versions = ch_versions.mix(MEGAHIT_INTERLEAVED.out.versions)
     } else {
@@ -329,7 +340,8 @@ workflow METATDENOVO {
         ch_protein       = PROKKA_SUBSETS.out.faa
         ch_multiqc_files = ch_multiqc_files.mix(PROKKA_SUBSETS.out.prokka_log)
 
-        UNPIGZ_GFF(PROKKA_SUBSETS.out.gff.map { meta, gff -> [ [id: "${params.orf_caller}.${meta}"], gff ] })
+        //UNPIGZ_GFF(PROKKA_SUBSETS.out.gff.map { meta, gff -> [ [id: "${orfs_name}.${meta.id}"], gff ] })
+        UNPIGZ_GFF(PROKKA_SUBSETS.out.gff)
         ch_gff           = UNPIGZ_GFF.out.unzipped
         ch_versions      = ch_versions.mix(UNPIGZ_GFF.out.versions)
     }
@@ -338,11 +350,12 @@ workflow METATDENOVO {
     // MODULE: Run PRODIGAL on assembly output.
     //
     if ( orf_caller == 'prodigal' ) {
-        PRODIGAL( ch_assembly_contigs.map { meta, contigs -> [ [id: "${assembler}.${orf_caller}"], contigs  ] } )
+        PRODIGAL( ch_assembly_contigs.map { meta, contigs -> [ [id: "${assembly_name}.${orfs_name}"], contigs  ] } )
         ch_protein      = PRODIGAL.out.faa
         ch_versions     = ch_versions.mix(PRODIGAL.out.versions)
 
-        UNPIGZ_GFF(PRODIGAL.out.gff.map { meta, gff -> [ [id: "${meta.id}.${orf_caller}"], gff ] })
+        //UNPIGZ_GFF(PRODIGAL.out.gff.map { meta, gff -> [ [id: "${meta.id}"], gff ] })
+        UNPIGZ_GFF(PRODIGAL.out.gff)
         ch_gff          = UNPIGZ_GFF.out.unzipped
         ch_versions     = ch_versions.mix(UNPIGZ_GFF.out.versions)
     }
@@ -350,20 +363,20 @@ workflow METATDENOVO {
     //
     // SUBWORKFLOW: run TRANSDECODER. Orf caller alternative for eukaryotes.
     //
-    if ( orf_caller == 'transdecoder' ) {
-        TRANSDECODER ( ch_assembly_contigs.map { meta, contigs -> [ [id: "transdecoder.${meta.id}" ], contigs ] } )
+    if ( orf_caller == 'transdecoder' && ! ( params.user_orfs_gff ) ) {
+        TRANSDECODER ( ch_assembly_contigs.map { meta, contigs -> [ [id: "${assembly_name}.${orfs_name}" ], contigs ] } )
         ch_gff      = TRANSDECODER.out.gff
         ch_protein  = TRANSDECODER.out.pep
         ch_versions = ch_versions.mix(TRANSDECODER.out.versions)
     }
 
     // Populate channels if the user provided the orfs
-    if ( orf_caller == 'user_orfs' ) {
+    if ( params.user_orfs_faa && params.user_orfs_gff ) {
         Channel
-            .value ( [ [ id: "${assembler}.${orf_caller}" ], file(params.gff) ] )
+            .value ( [ [ id: "${assembly_name}.${orfs_name}" ], file(params.user_orfs_gff) ] )
             .set { ch_gff }
         Channel
-            .value ( [ [ id: "${assembler}.${orf_caller}" ], file(params.protein_fasta) ] )
+            .value ( [ [ id: "${assembly_name}.${orfs_name}" ], file(params.user_orfs_faa) ] )
             .set { ch_protein }
     }
 
@@ -384,7 +397,7 @@ workflow METATDENOVO {
     //
     ch_hmmrs
         .combine(ch_protein)
-        .map { hmm, meta, protein ->[ [ id: "${assembler}.${orf_caller}" ], hmm, protein ] }
+        .map { hmm, meta, protein ->[ [ id: "${assembly_name}.${orfs_name}" ], hmm, protein ] }
         .set { ch_hmmclassify }
     HMMCLASSIFY ( ch_hmmclassify )
     ch_versions = ch_versions.mix(HMMCLASSIFY.out.versions)
@@ -412,7 +425,7 @@ workflow METATDENOVO {
     //
     FEATURECOUNTS_CDS.out.counts
         .collect() { meta, featurecounts -> featurecounts }
-        .map { featurecounts -> [ [ id:"${assembler}.${orf_caller}" ], featurecounts ] }
+        .map { featurecounts -> [ [ id:"${assembly_name}.${orfs_name}" ], featurecounts ] }
         .set { ch_collect_feature }
 
     COLLECT_FEATURECOUNTS ( ch_collect_feature )
