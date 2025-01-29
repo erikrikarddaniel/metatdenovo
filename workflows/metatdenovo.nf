@@ -53,19 +53,19 @@ if ( params.hmmdir ) {
 //
 // MODULE: local
 //
-include { COLLECT_FEATURECOUNTS            } from '../modules/local/collect_featurecounts'
-include { COLLECT_STATS                    } from '../modules/local/collect_stats'
-include { FORMATSPADES                     } from '../modules/local/formatspades'
-include { MEGAHIT_INTERLEAVED              } from '../modules/local/megahit/interleaved'
-include { MERGE_TABLES                     } from '../modules/local/merge_summary_tables'
-include { FORMAT_DIAMOND_TAX               } from '../modules/local/format_diamond_tax'
-include { TRANSDECODER                     } from '../modules/local/transdecoder'
-include { TRANSRATE                        } from '../modules/local/transrate'
-include { UNPIGZ as UNPIGZ_CONTIGS         } from '../modules/local/unpigz'
-include { UNPIGZ as UNPIGZ_GFF             } from '../modules/local/unpigz'
-include { WRITESPADESYAML                  } from '../modules/local/writespadesyaml'
+include { COLLECT_FEATURECOUNTS              } from '../modules/local/collect_featurecounts'
+include { COLLECT_STATS                      } from '../modules/local/collect_stats'
+include { FORMATSPADES                       } from '../modules/local/formatspades'
+include { MEGAHIT_INTERLEAVED                } from '../modules/local/megahit/interleaved'
+include { MERGE_TABLES                       } from '../modules/local/merge_summary_tables'
+include { FORMAT_DIAMOND_TAX                 } from '../modules/local/format_diamond_tax'
+include { TRANSDECODER                       } from '../modules/local/transdecoder'
+include { TRANSRATE                          } from '../modules/local/transrate'
+include { UNPIGZ as UNPIGZ_CONTIGS           } from '../modules/local/unpigz'
+include { UNPIGZ as UNPIGZ_GFF               } from '../modules/local/unpigz'
+include { WRITESPADESYAML                    } from '../modules/local/writespadesyaml'
+include { DIAMOND_BLASTP as DIAMOND_TAXONOMY } from '../modules/local/diamond/blastp'
 
-include { DIAMOND_BLASTP as DIAMOND_TAXONOMY         } from '../modules/local/diamond/blastp'
 //
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
 //
@@ -98,7 +98,6 @@ include { BBMAP_BBDUK                                } from '../modules/nf-core/
 include { BBMAP_BBNORM                               } from '../modules/nf-core/bbmap/bbnorm/main'
 include { BBMAP_INDEX                                } from '../modules/nf-core/bbmap/index/main'
 include { CAT_FASTQ            	                     } from '../modules/nf-core/cat/fastq/main'
-//include { DIAMOND_BLASTP as DIAMOND_TAXONOMY         } from '../modules/nf-core/diamond/blastp/main'
 include { FASTQC                                     } from '../modules/nf-core/fastqc/main'
 include { MULTIQC                                    } from '../modules/nf-core/multiqc/main'
 include { PIGZ_COMPRESS as PIGZ_ASSEMBLY             } from '../modules/nf-core/pigz/compress/main'
@@ -137,41 +136,40 @@ workflow METATDENOVO {
     ch_versions = Channel.empty()
     ch_multiqc_files = Channel.empty()
 
-    //
-    // SUBWORKFLOW: Read in samplesheet, validate and stage input files
-    //
-    ch_samplesheet
-    .flatMap { meta, fastq_files ->
-        if (fastq_files.size() <= 2) {
-            return [[ meta.id, [meta], fastq_files ]]
-        } else {
-            def pairs = fastq_files.collate(2)
-            return [[ meta.id, pairs.collect { meta + [id: "${meta.id}_${pairs.indexOf(it) + 1}"] }, fastq_files ]]
+    // Form a fastq channel from the samplesheet channel
+    // DL: I'm not sure which parts are still required after nf-schema. The branch { } certainly is needed.
+    ch_fastq = ch_samplesheet
+        .flatMap { meta, fastq_files ->
+            if (fastq_files.size() <= 2) {
+                return [[ meta.id, [meta], fastq_files ]]
+            } else {
+                def pairs = fastq_files.collate(2)
+                return [[ meta.id, pairs.collect { meta + [id: "${meta.id}_${pairs.indexOf(it) + 1}"] }, fastq_files ]]
+            }
         }
-    }
-    .map { id, metas, fastq_files ->
-        // Ensure single_end is set correctly in meta
-        def updatedMetas = metas.collect { it + [single_end: (fastq_files.size() / metas.size() == 1)] }
-        return [id, updatedMetas, fastq_files]
-    }
-    .map { validateInputSamplesheet(it) }
-    .branch {
-        meta, fastqs ->
-            single  : fastqs.size() == 1
-                return [ meta, fastqs ]
-            multiple: fastqs.size() > 1
-                return [ meta, fastqs ]
-    }
-    .set { ch_fastq }
+        .map { id, metas, fastq_files ->
+            // Ensure single_end is set correctly in meta
+            def updatedMetas = metas.collect { it + [single_end: (fastq_files.size() / metas.size() == 1)] }
+            return [id, updatedMetas, fastq_files]
+        }
+        .map { validateInputSamplesheet(it) }
+        .branch {
+            meta, fastqs ->
+                single  : fastqs.size() == 1
+                    return [ meta, fastqs ]
+                multiple: fastqs.size() > 1
+                    return [ meta, fastqs ]
+        }
+
     //
     // MODULE: Concatenate FastQ files from same sample if required
     //
     CAT_FASTQ (
         ch_fastq.multiple
     )
-    .reads
-    .mix(ch_fastq.single)
-    .set { ch_cat_fastq }
+        .reads
+        .mix(ch_fastq.single)
+        .set { ch_cat_fastq }
 
     ch_versions = ch_versions.mix(CAT_FASTQ.out.versions.first())
 
@@ -545,7 +543,6 @@ workflow METATDENOVO {
     FORMAT_DIAMOND_TAX(
         PIGZ_DIAMOND_LINEAGE.out.archive
             .map { it -> [ [ id: it[0].db ], it[0], it[1] ] }
-            //.join(ch_diamond_dbs.filter { it -> it[3] })
             .join(ch_diamond_dbs)
             .map { it -> [ [ id: it[1].id - ".lineage" + ".diamond" ], it[2], it[5] ] }
     )
