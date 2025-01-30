@@ -137,7 +137,7 @@
                     "@id": "https://orcid.org/0000-0002-8779-6464"
                 },
                 {
-                    "@id": "https://orcid.org/0000-0001-8358-423X"
+                    "@id": "https://orcid.org/0009-0009-6639-7876"
                 },
                 {
                     "@id": "#emelie.nilsson@lnu.se"
@@ -163,7 +163,7 @@
                     "@id": "https://orcid.org/0000-0002-8779-6464"
                 },
                 {
-                    "@id": "https://orcid.org/0000-0001-8358-423X"
+                    "@id": "https://orcid.org/0009-0009-6639-7876"
                 }
             ],
             "name": [
@@ -354,7 +354,7 @@
             "name": "Daniel Lundin"
         },
         {
-            "@id": "https://orcid.org/0000-0001-8358-423X",
+            "@id": "https://orcid.org/0009-0009-6639-7876",
             "@type": "Person",
             "email": "danilo.dileo@lnu.se",
             "name": "Danilo Di Leo"
