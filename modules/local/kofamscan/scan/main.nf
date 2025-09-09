@@ -4,8 +4,8 @@ process KOFAMSCAN_SCAN {
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/kofamscan:1.3.0--hdfd78af_2':
-        'quay.io/biocontainers/kofamscan:1.3.0--hdfd78af_2' }"
+        'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/6d/6dfcf585769170a1385b3420fe4e8eaa89f3e06e122abce4e89898a30f42a8e5/data' :
+        'community.wave.seqera.io/library/kofamscan_parallel:66d19ec31c821a4e' }"
 
     input:
     tuple val(meta), path(fasta)
