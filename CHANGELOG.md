@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### `Fixed`
 
+- [#NN](https://github.com/nf-core/metatdenovo/pull/NN) - Update the vendored `transdecoder/predict` module so `-resume` no longer fails it with a missing-output error on an otherwise unchanged run, addresses [#477](https://github.com/nf-core/metatdenovo/issues/477) (@erikrikarddaniel)
 - [#NN](https://github.com/nf-core/metatdenovo/pull/NN) - Fix a crash in the MultiQC ORF statistics when an ORF caller returns no proteins at all (@erikrikarddaniel)
 - [#NN](https://github.com/nf-core/metatdenovo/pull/NN) - Run eggnog-mapper for every active ORF caller. With more than one `--orf_caller`, only the first one was annotated, so `<assembly>.<caller>.emapper.tsv.gz` and the `n_eggnog` column of `<assembly>.<caller>.overall_stats.tsv.gz` were missing for the rest (@erikrikarddaniel)
 - [#467](https://github.com/nf-core/metatdenovo/pull/467) - Fix validation that was supposed to reject `--orf_caller` and `--user_orfs_gff`/`--user_orfs_faa` both being set at once, but could never actually trigger (@erikrikarddaniel)
