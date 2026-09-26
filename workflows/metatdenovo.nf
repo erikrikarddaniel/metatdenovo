@@ -17,7 +17,6 @@ include { FORMAT_LOCUSCONSOLIDATE            } from '../modules/local/format/loc
 include { FORMAT_LOCUSFAA                    } from '../modules/local/format/locusfaa/'
 include { FORMATSPADES                       } from '../modules/local/format/spades/'
 include { MERGE_TABLES                       } from '../modules/local/merge/summary/'
-include { SAMTOOLS_TRIMHEADER                } from '../modules/local/samtools/trimheader/'
 include { FORMAT_DIAMOND_TAX_RANKLIST        } from '../modules/local/diamond/format_tax/ranklist/'
 include { FORMAT_DIAMOND_TAX_TAXDUMP         } from '../modules/local/diamond/format_tax/taxdump/'
 include { SUMTAXONOMY as SUM_DIAMONDTAX      } from '../modules/local/sumtaxonomy/'
@@ -95,6 +94,9 @@ include { MMSEQS_FASTA_CLUSTER                       } from '../subworkflows/nf-
 include { UTILS_NEXTFLOW_PIPELINE                    } from '../subworkflows/nf-core/utils_nextflow_pipeline/'
 include { UTILS_NFCORE_PIPELINE                      } from '../subworkflows/nf-core/utils_nfcore_pipeline/'
 include { methodsDescriptionText                     } from '../subworkflows/local/utils_nfcore_metatdenovo_pipeline'
+
+// Must stay the last include: each eval() output gets a sequence number in include order, and a shift changes every later task hash
+include { SAMTOOLS_TRIMHEADER                        } from '../modules/local/samtools/trimheader/'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
