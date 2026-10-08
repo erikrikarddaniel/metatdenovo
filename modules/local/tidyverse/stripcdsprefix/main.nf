@@ -20,27 +20,15 @@ process TIDYVERSE_STRIPCDSPREFIX {
     script:
     prefix = task.ext.prefix ?: "${meta.id}"
     """
-    #!/usr/bin/env Rscript
+    # Streams, so memory stays constant. orf is the first column. Output name equals the
+    # staged input symlink: write elsewhere and rename, or the upstream task cache is overwritten.
+    gzip -dc ${counts} | sed 's/^cds\\.//' | gzip -c > stripped.counts.tsv.gz
+    mv -f stripped.counts.tsv.gz ${prefix}.counts.tsv.gz
 
-    library(readr)
-    library(dplyr)
-    library(stringr)
-
-    read_tsv("${counts}", show_col_types = FALSE) %>%
-        # Transdecoder appends "cds." to ORF IDs in the gff file, but does not in the fasta file. Remove to make compatible between tables.
-        mutate(orf = str_remove(orf, '^cds\\\\.')) %>%
-        write_tsv("${prefix}.counts.tsv.gz")
-
-    writeLines(
-        c(
-            "\\"${task.process}\\":",
-            paste0("    R: ", paste0(R.Version()[c("major","minor")], collapse = ".")),
-            paste0("    readr: ", packageVersion('readr')),
-            paste0("    dplyr: ", packageVersion('dplyr')),
-            paste0("    stringr: ", packageVersion('stringr'))
-        ),
-        "versions.yml"
-    )
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        gzip: \$(gzip --version 2>&1 | head -1 | sed 's/^gzip //')
+    END_VERSIONS
     """
 
     stub:
