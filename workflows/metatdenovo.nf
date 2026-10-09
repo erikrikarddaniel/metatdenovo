@@ -893,7 +893,7 @@ workflow METATDENOVO {
     //
     if( !params.skip_kofamscan ) {
         ch_kofamscan = ch_protein.map { meta, protein -> [ meta, protein ] }
-        KOFAMSCAN( ch_kofamscan, ch_fcs_for_summary, params.kofam_ko_list_url, params.kofam_profiles_url )
+        KOFAMSCAN( ch_kofamscan, ch_fcs_for_summary, params.kofam_ko_list_url, params.kofam_profiles_url, params.kofamscan_batchsize )
         ch_merge_tables = ch_merge_tables.mix ( KOFAMSCAN.out.kofamscan_summary )
     }
 

@@ -470,6 +470,13 @@
                     "fa_icon": "fas fa-link",
                     "hidden": true
                 },
+                "kofamscan_batchsize": {
+                    "type": "integer",
+                    "description": "Number of residues per protein batch KofamScan is run on.",
+                    "default": 1330000000,
+                    "hidden": true,
+                    "fa_icon": "fas fa-expand-alt"
+                },
                 "skip_dbcan": {
                     "type": "boolean",
                     "description": "If enabled, skips dbCAN CAZyme annotation.",
