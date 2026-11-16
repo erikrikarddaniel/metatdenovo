@@ -82,6 +82,8 @@ include { BAM_SORT_STATS_SAMTOOLS                    } from '../subworkflows/nf-
 include { UTILS_NEXTFLOW_PIPELINE                    } from '../subworkflows/nf-core/utils_nextflow_pipeline/'
 include { UTILS_NFCORE_PIPELINE                      } from '../subworkflows/nf-core/utils_nfcore_pipeline/'
 include { methodsDescriptionText                     } from '../subworkflows/local/utils_nfcore_metatdenovo_pipeline'
+// Included last: an earlier include renumbers every eval() output and breaks -resume of 1.4.0 runs on Nextflow < 26.10
+include { SAMTOOLS_TRIMHEADER                        } from '../modules/nf-core/samtools/trimheader/'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -458,7 +460,10 @@ workflow METATDENOVO {
         ch_assembly_contigs.map { meta, fasta -> [meta, fasta, []] }
     )
 
-    ch_featurecounts = BAM_SORT_STATS_SAMTOOLS.out.bam
+    // featureCounts crashes on a BAM header over 2 GiB
+    SAMTOOLS_TRIMHEADER ( BAM_SORT_STATS_SAMTOOLS.out.bam.join(BAM_SORT_STATS_SAMTOOLS.out.index) )
+
+    ch_featurecounts = SAMTOOLS_TRIMHEADER.out.bam
         .combine(ch_gff.map { _meta, bam -> bam } )
 
     ch_collect_stats = ch_collect_stats
